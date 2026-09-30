@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎯 Chá de Casa Nova</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1d24; --text:#f2f2f2; --muted:#9aa0aa;
+    --accent:#22c55e; --track:#2a2e37; --border:#2a2e37;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f5f6f8; --card:#ffffff; --text:#1a1d24; --muted:#5b6270;
+      --accent:#16a34a; --track:#e6e8ec; --border:#e6e8ec;
+    }
+  }
+  body{
+    margin:0;background:var(--bg);color:var(--text);min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px;
+  }
+  .wrap{width:100%;max-width:640px;}
+  h1{font-size:22px;margin:0 0 20px;text-align:center;}
+  .hero{
+    background:var(--card);border:1px solid var(--border);border-radius:20px;
+    padding:28px 24px;text-align:center;margin-bottom:24px;
+  }
+  .hero .icon{font-size:64px;line-height:1;}
+  .hero .name{font-size:32px;font-weight:800;margin:8px 0 20px;}
+  .bar-outer{background:var(--track);border-radius:999px;height:28px;overflow:hidden;position:relative;margin-bottom:14px;}
+  .bar-inner{background:linear-gradient(90deg,var(--accent),#4ade80);height:100%;transition:width .4s ease;}
+  .bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;mix-blend-mode:difference;}
+  .values{font-size:20px;font-weight:700;}
+  .missing{color:var(--muted);font-size:15px;margin-top:4px;}
+  .done-msg{font-size:20px;font-weight:700;color:var(--accent);}
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .row{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;}
+  .row .ic{font-size:26px;}
+  .row .info{flex:1;min-width:0;}
+  .row .rname{font-weight:700;font-size:15px;}
+  .row .rbar{background:var(--track);border-radius:999px;height:8px;margin-top:6px;overflow:hidden;}
+  .row .rbar-in{background:var(--accent);height:100%;}
+  .row .rval{font-size:12px;color:var(--muted);margin-top:4px;}
+  .empty{text-align:center;color:var(--muted);padding:40px 0;}
+
+  /* modo edição — só aparece com ?edit=1 na URL */
+  .edit-banner{background:#78350f;color:#fde68a;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;text-align:center;}
+  .editrow{display:flex;gap:6px;margin-top:8px;}
+  .editrow input{width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);}
+  .editrow button{padding:6px 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:12px;}
+  .downloadbar{position:sticky;bottom:12px;text-align:center;margin-top:20px;}
+  .downloadbar button{padding:14px 22px;border-radius:999px;border:none;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎯 Chá de Casa Nova</h1>
+  <div id="editBanner"></div>
+  <div id="hero" class="hero"><div class="empty">Carregando…</div></div>
+  <div id="list" class="list"></div>
+  <div id="downloadBar"></div>
+</div>
+
+<script>
+const ICONS = {
+  colchao:"🛏️", cama:"🛌", geladeira:"🧊", fogao:"🍳", panelas:"🍳",
+  pratos:"🍽️", talheres:"🍴", copos:"🥤", tigelas:"🥣", frigideira:"🍳",
+  utensilios:"🥄", tabua:"🔪", potes:"🥡", jogoscama:"🛏️", travesseiros:"💤",
+  cobertor:"🛌", toalhas:"🚿", kitbanheiro:"🚽", vassoura:"🧹", moprodo:"🧼",
+  panos:"🧽", limpeza:"🧴", lixeiras:"🗑️", baldes:"🪣", armariocozinha:"🗄️",
+  armariomultiuso:"🗄️", cabideira:"👚", caixas:"📦", cabides:"👚",
+  sofa:"🛋️", rack:"📺", espelho:"🪞", organizadores:"📦", microondas:"📡"
+};
+const BRL = n => "R$ " + Math.round(n).toLocaleString("pt-BR");
+const EDIT = new URLSearchParams(location.search).get("edit") === "1";
+let items = [];
+
+function render(){
+  if(EDIT){
+    document.getElementById("editBanner").innerHTML =
+      '<div class="edit-banner">✏️ Modo edição — mude os valores e baixe o data.json atualizado no final da página.</div>';
+  }
+  const hero = document.getElementById("hero");
+  const list = document.getElementById("list");
+  const pending = items.filter(i => i.arrecadado < i.meta).sort((a,b)=>a.ordem-b.ordem);
+  const current = pending[0];
+
+  const editFields = (i) => !EDIT ? "" : `
+    <div class="editrow">
+      <input type="number" data-f="arrecadado" data-id="${i.id}" value="${i.arrecadado}" placeholder="Arrecadado">
+      <input type="number" data-f="meta" data-id="${i.id}" value="${i.meta}" placeholder="Meta">
+    </div>`;
+
+  if(!current){
+    hero.innerHTML = '<div class="done-msg">🎉 Tudo quitado! Muito obrigado, pessoal!</div>';
+  } else {
+    const pct = Math.min(100, Math.round(100*current.arrecadado/current.meta));
+    hero.innerHTML = `
+      <div class="icon">${ICONS[current.id]||"🎁"}</div>
+      <div class="name">${current.name}</div>
+      <div class="bar-outer"><div class="bar-inner" style="width:${pct}%"></div><div class="bar-label">${pct}%</div></div>
+      <div class="values">${BRL(current.arrecadado)} de ${BRL(current.meta)}</div>
+      <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>
+      ${editFields(current)}`;
+  }
+
+  list.innerHTML = pending.slice(current ? 1 : 0).map(i => {
+    const pct = Math.min(100, Math.round(100*i.arrecadado/i.meta));
+    return `<div class="row-wrap"><div class="row">
+      <div class="ic">${ICONS[i.id]||"🎁"}</div>
+      <div class="info">
+        <div class="rname">${i.name}</div>
+        <div class="rbar"><div class="rbar-in" style="width:${pct}%"></div></div>
+        <div class="rval">${BRL(i.arrecadado)} de ${BRL(i.meta)}</div>
+        ${editFields(i)}
+      </div>
+    </div></div>`;
+  }).join("");
+
+  if(EDIT){
+    document.querySelectorAll('input[data-f]').forEach(inp => {
+      inp.onchange = () => {
+        const it = items.find(x => x.id === inp.dataset.id);
+        it[inp.dataset.f] = parseFloat(inp.value) || 0;
+        render();
+      };
+    });
+    document.getElementById("downloadBar").innerHTML =
+      '<div class="downloadbar"><button id="dl">⬇️ Baixar data.json atualizado</button></div>';
+    document.getElementById("dl").onclick = () => {
+      const blob = new Blob([JSON.stringify({items}, null, 2)], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "data.json";
+      a.click();
+    };
+  } else {
+    document.getElementById("downloadBar").innerHTML = "";
+  }
+}
+
+fetch("./data.json")
+  .then(r => r.json())
+  .then(d => { items = d.items; render(); })
+  .catch(() => {
+    document.getElementById("hero").innerHTML = '<div class="empty">Não consegui carregar os dados (verifique se data.json está na mesma pasta).</div>';
+  });
+</script>
+</body>
+</html>
