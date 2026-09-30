@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>🎯 Chá de Casa Nova</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#0f1115; --card:#1a1d24; --text:#f2f2f2; --muted:#9aa0aa;
@@ -22,10 +23,7 @@
   }
   .wrap{width:100%;max-width:640px;}
   h1{font-size:22px;margin:0 0 20px;text-align:center;}
-  .hero{
-    background:var(--card);border:1px solid var(--border);border-radius:20px;
-    padding:28px 24px;text-align:center;margin-bottom:24px;
-  }
+  .hero{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 24px;text-align:center;margin-bottom:24px;}
   .hero .icon{font-size:64px;line-height:1;}
   .hero .name{font-size:32px;font-weight:800;margin:8px 0 20px;}
   .bar-outer{background:var(--track);border-radius:999px;height:28px;overflow:hidden;position:relative;margin-bottom:14px;}
@@ -34,6 +32,9 @@
   .values{font-size:20px;font-weight:700;}
   .missing{color:var(--muted);font-size:15px;margin-top:4px;}
   .done-msg{font-size:20px;font-weight:700;color:var(--accent);}
+  .givebtn{margin-top:18px;padding:12px 20px;border-radius:999px;border:none;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer;}
+  .givebtn.small{margin-top:8px;padding:8px 14px;font-size:13px;}
+  .givebtn:disabled{opacity:.5;cursor:default;}
   .list{display:flex;flex-direction:column;gap:10px;}
   .row{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:12px;}
   .row .ic{font-size:26px;}
@@ -43,14 +44,9 @@
   .row .rbar-in{background:var(--accent);height:100%;}
   .row .rval{font-size:12px;color:var(--muted);margin-top:4px;}
   .empty{text-align:center;color:var(--muted);padding:40px 0;}
-
-  /* modo edição — só aparece com ?edit=1 na URL */
-  .edit-banner{background:#78350f;color:#fde68a;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;text-align:center;}
   .editrow{display:flex;gap:6px;margin-top:8px;}
   .editrow input{width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);}
-  .editrow button{padding:6px 10px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:12px;}
-  .downloadbar{position:sticky;bottom:12px;text-align:center;margin-top:20px;}
-  .downloadbar button{padding:14px 22px;border-radius:999px;border:none;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);}
+  .edit-banner{background:#78350f;color:#fde68a;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;text-align:center;}
 </style>
 </head>
 <body>
@@ -59,10 +55,15 @@
   <div id="editBanner"></div>
   <div id="hero" class="hero"><div class="empty">Carregando…</div></div>
   <div id="list" class="list"></div>
-  <div id="downloadBar"></div>
 </div>
 
 <script>
+const SUPABASE_URL = "https://hcmxkywkjsipadaiomev.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbXhreXdranNpcGFkYWlvbWV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3OTM4OTksImV4cCI6MjEwNjM2OTg5OX0.gu5zaaOBd5qKdFtYJa2DSNMaRwfvH0_FE2wJXXe48wU";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const EDIT = new URLSearchParams(location.search).get("edit") === "1";
+
 const ICONS = {
   colchao:"🛏️", cama:"🛌", geladeira:"🧊", fogao:"🍳", panelas:"🍳",
   pratos:"🍽️", talheres:"🍴", copos:"🥤", tigelas:"🥣", frigideira:"🍳",
@@ -73,13 +74,20 @@ const ICONS = {
   sofa:"🛋️", rack:"📺", espelho:"🪞", organizadores:"📦", microondas:"📡"
 };
 const BRL = n => "R$ " + Math.round(n).toLocaleString("pt-BR");
-const EDIT = new URLSearchParams(location.search).get("edit") === "1";
 let items = [];
+
+async function markGiven(id){
+  const it = items.find(x => x.id === id);
+  await sb.from("items").update({ arrecadado: it.meta }).eq("id", id);
+}
+async function saveEdit(id, meta, arrecadado){
+  await sb.from("items").update({ meta, arrecadado }).eq("id", id);
+}
 
 function render(){
   if(EDIT){
     document.getElementById("editBanner").innerHTML =
-      '<div class="edit-banner">✏️ Modo edição — mude os valores e baixe o data.json atualizado no final da página.</div>';
+      '<div class="edit-banner">✏️ Modo edição — dá pra corrigir Meta e Arrecadado na mão aqui.</div>';
   }
   const hero = document.getElementById("hero");
   const list = document.getElementById("list");
@@ -90,6 +98,7 @@ function render(){
     <div class="editrow">
       <input type="number" data-f="arrecadado" data-id="${i.id}" value="${i.arrecadado}" placeholder="Arrecadado">
       <input type="number" data-f="meta" data-id="${i.id}" value="${i.meta}" placeholder="Meta">
+      <button class="givebtn small" data-save="${i.id}">Salvar</button>
     </div>`;
 
   if(!current){
@@ -102,12 +111,13 @@ function render(){
       <div class="bar-outer"><div class="bar-inner" style="width:${pct}%"></div><div class="bar-label">${pct}%</div></div>
       <div class="values">${BRL(current.arrecadado)} de ${BRL(current.meta)}</div>
       <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>
+      <button class="givebtn" data-give="${current.id}">🎁 Eu dou esse!</button>
       ${editFields(current)}`;
   }
 
   list.innerHTML = pending.slice(current ? 1 : 0).map(i => {
     const pct = Math.min(100, Math.round(100*i.arrecadado/i.meta));
-    return `<div class="row-wrap"><div class="row">
+    return `<div class="row">
       <div class="ic">${ICONS[i.id]||"🎁"}</div>
       <div class="info">
         <div class="rname">${i.name}</div>
@@ -115,37 +125,47 @@ function render(){
         <div class="rval">${BRL(i.arrecadado)} de ${BRL(i.meta)}</div>
         ${editFields(i)}
       </div>
-    </div></div>`;
+      <button class="givebtn small" data-give="${i.id}">🎁 Eu dou esse!</button>
+    </div>`;
   }).join("");
 
-  if(EDIT){
-    document.querySelectorAll('input[data-f]').forEach(inp => {
-      inp.onchange = () => {
-        const it = items.find(x => x.id === inp.dataset.id);
-        it[inp.dataset.f] = parseFloat(inp.value) || 0;
-        render();
-      };
-    });
-    document.getElementById("downloadBar").innerHTML =
-      '<div class="downloadbar"><button id="dl">⬇️ Baixar data.json atualizado</button></div>';
-    document.getElementById("dl").onclick = () => {
-      const blob = new Blob([JSON.stringify({items}, null, 2)], {type:"application/json"});
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "data.json";
-      a.click();
+  document.querySelectorAll("[data-give]").forEach(btn => {
+    btn.onclick = () => {
+      btn.disabled = true;
+      markGiven(btn.getAttribute("data-give"));
     };
-  } else {
-    document.getElementById("downloadBar").innerHTML = "";
-  }
+  });
+  document.querySelectorAll("[data-save]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.getAttribute("data-save");
+      const row = btn.closest(".editrow") || btn.closest(".hero");
+      const meta = parseFloat(row.querySelector('[data-f="meta"]').value);
+      const arrecadado = parseFloat(row.querySelector('[data-f="arrecadado"]').value);
+      saveEdit(id, meta, arrecadado);
+    };
+  });
 }
 
-fetch("./data.json")
-  .then(r => r.json())
-  .then(d => { items = d.items; render(); })
-  .catch(() => {
-    document.getElementById("hero").innerHTML = '<div class="empty">Não consegui carregar os dados (verifique se data.json está na mesma pasta).</div>';
-  });
+async function init(){
+  const { data, error } = await sb.from("items").select("*");
+  if(error || !data){
+    document.getElementById("hero").innerHTML = '<div class="empty">Não consegui conectar ao banco.</div>';
+    return;
+  }
+  items = data;
+  render();
+
+  sb.channel("items-changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "items" }, payload => {
+      const idx = items.findIndex(i => i.id === (payload.new && payload.new.id || payload.old && payload.old.id));
+      if(payload.eventType === "DELETE"){ if(idx>-1) items.splice(idx,1); }
+      else if(idx > -1){ items[idx] = payload.new; }
+      else { items.push(payload.new); }
+      render();
+    })
+    .subscribe();
+}
+init();
 </script>
 </body>
 </html>
