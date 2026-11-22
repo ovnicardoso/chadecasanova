@@ -131,6 +131,27 @@
   .log-del{background:none;border:none;color:#f87171;font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;line-height:1;}
   .log-del:hover{background:rgba(248,113,113,.15);}
   .log-del:disabled{opacity:.4;cursor:default;}
+
+  /* ajustes de layout */
+  h1{font-size:clamp(20px,5vw,28px);}
+  .pix-box{display:flex;align-items:center;gap:20px;text-align:left;padding:16px 20px;}
+  .pix-box img{width:132px;height:132px;flex-shrink:0;}
+  .pix-info{flex:1;min-width:0;}
+  .pix-info h2{margin-bottom:6px;}
+  .pix-key{margin-top:0;}
+  .pix-key + span{word-break:break-all;}
+  .pix-info .givebtn{margin-top:10px;}
+  .copied{margin-top:6px;}
+  @media(max-width:520px){.pix-box{flex-direction:column;text-align:center;}}
+  .bar-label{mix-blend-mode:normal;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5);}
+  .row .rname{padding-right:0;}
+  #donorsList,#latestList,#completedList,#reservedList{max-height:320px;overflow-y:auto;}
+  .donor-row .ditem{flex-shrink:0;}
+  .givebtn{transition:transform .12s ease,opacity .12s;}
+  .givebtn:not(:disabled):active{transform:scale(.97);}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  @media(max-width:760px){.hero .givebtn{width:100%;}.hero .name{font-size:26px;}}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 </head>
 <body>
@@ -138,11 +159,14 @@
   <h1>CHÁ DE CASA NOVA DO VINICIUS</h1>
 
   <div class="pix-box">
-    <h2>💚 Manda um Pix!</h2>
     <img src="qrcode.jfif" alt="QR Code Pix" onerror="this.style.display='none'">
-    <div class="pix-key">Chave Pix:</div>
-    <span id="pixKey" onclick="copyPix()">ovnicardoso@gmail.com</span>
-    <div class="copied" id="copiedMsg">Copiado! ✓</div>
+    <div class="pix-info">
+      <h2>💚 Manda um Pix!</h2>
+      <div class="pix-key">Chave Pix:</div>
+      <span id="pixKey" onclick="copyPix()">ovnicardoso@gmail.com</span>
+      <div><button class="givebtn small" onclick="copyPix()">Copiar chave</button></div>
+      <div class="copied" id="copiedMsg">Copiado! ✓</div>
+    </div>
   </div>
 
   <div id="editBanner"></div>
@@ -152,6 +176,10 @@
       <div class="donors-card">
         <h2>💚 Lista de Doadores</h2>
         <div id="donorsList"></div>
+      </div>
+      <div class="donors-card">
+        <h2>🕐 Últimos doadores</h2>
+        <div id="latestList"></div>
       </div>
       <div class="donors-card">
         <h2>🎉 Itens já quitados</h2>
@@ -188,6 +216,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const EDIT = new URLSearchParams(location.search).get("edit") === "1";
 const ADMIN = new URLSearchParams(location.search).get("admin") === "1";
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 // ── PAINEL ADMIN ──────────────────────────────────────────────
 if(ADMIN){
@@ -247,15 +276,15 @@ if(ADMIN){
     ]);
     // popula select de itens
     const sel = document.getElementById("adResItem");
-    sel.innerHTML = iData.map(i=>`<option value="${i.id}">${i.name}</option>`).join("");
+    sel.innerHTML = iData.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join("");
     // reservas ativas, com botão de apagar
     const resLog = document.getElementById("adResLog");
     if(!rData||!rData.length){ resLog.textContent="Nenhuma reserva ativa."; }
     else{
       resLog.innerHTML = rData.map(r=>`<div class="log-item">
         <div class="log-left">
-          <span class="log-name">📦 ${r.nome}</span>
-          <span class="log-itemname">${r.items?.name||""}</span>
+          <span class="log-name">📦 ${esc(r.nome)}</span>
+          <span class="log-itemname">${esc(r.items?.name||"")}</span>
         </div>
         <div class="log-right">
           <button class="log-del" title="Apagar reserva" data-res-del="${r.id}">🗑️</button>
@@ -270,8 +299,8 @@ if(ADMIN){
     if(!dData||!dData.length){log.textContent="Nenhuma doação ainda.";return;}
     log.innerHTML = dData.map(d=>`<div class="log-item">
       <div class="log-left">
-        <span class="log-name">💚 ${d.nome}</span>
-        <span class="log-itemname">${d.items?.name||""}</span>
+        <span class="log-name">💚 ${esc(d.nome)}</span>
+        <span class="log-itemname">${esc(d.items?.name||"")}</span>
       </div>
       <div class="log-right">
         <span class="log-val">R$ ${Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span>
@@ -376,15 +405,15 @@ if(ADMIN){
 }
 
 const ICONS={colchao:"🛏️",cama:"🛌",geladeira:"🧊",fogao:"🍳",panelas:"🍳",pratos:"🍽️",talheres:"🍴",copos:"🥤",tigelas:"🥣",frigideira:"🍳",utensilios:"🥄",tabua:"🔪",potes:"🥡",jogoscama:"🛏️",travesseiros:"💤",cobertor:"🛌",toalhas:"🚿",kitbanheiro:"🚽",vassoura:"🧹",moprodo:"🧼",panos:"🧽",limpeza:"🧴",lixeiras:"🗑️",baldes:"🪣",armariocozinha:"🗄️",armariomultiuso:"🗄️",cabideira:"👚",caixas:"📦",cabides:"👚",sofa:"🛋️",rack:"📺",espelho:"🪞",organizadores:"📦",microondas:"📡",liquidificador:"🫙",escorredor_louca:"🍽️",assadeiras:"🥘",espremedor:"🍋",garrafa_termica:"☕",porta_sabonete:"🧴",cesto_roupa:"🧺",lampadas:"💡",lixeira_cozinha:"🗑️",lixeira_banheiro:"🗑️",pano_prato:"🧻",potes_hermeticos:"🥡",mesa_cadeiras:"🪑",tabua_cozinha:"🔪",organizador_pia:"🧹"};
-const BRL=n=>"R$ "+Math.round(n).toLocaleString("pt-BR");
+const BRL=n=>"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:Number.isInteger(+n)?0:2,maximumFractionDigits:2});
 
 let items=[], donations=[], reservations=[], pendingReserveId=null;
 
 function copyPix(){
-  navigator.clipboard.writeText("ovnicardoso@gmail.com").then(()=>{
-    const m=document.getElementById("copiedMsg");
-    m.style.opacity="1";setTimeout(()=>m.style.opacity="0",2000);
-  });
+  const key="ovnicardoso@gmail.com";
+  const ok=()=>{const m=document.getElementById("copiedMsg");m.style.opacity="1";setTimeout(()=>m.style.opacity="0",2000);};
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(key).then(ok).catch(()=>{});
+  else{const t=document.createElement("textarea");t.value=key;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok();}catch(e){}t.remove();}
 }
 
 function openModal(id,name){
@@ -468,9 +497,33 @@ function renderDonorsList(){
   }
   el.innerHTML=entries.map(e=>`
     <div class="donor-row ${e.type}">
-      <span class="dname" style="font-size:${e.px}px">${e.type==="donation"?"💚":"📦"} ${e.nome}</span>
-      ${e.type==="reservation"?`<span class="ditem">${e.item} <span class="dtag">vai dar</span></span>`:""}
+      <span class="dname" style="font-size:${e.px}px">${e.type==="donation"?"💚":"📦"} ${esc(e.nome)}</span>
+      ${e.type==="reservation"?`<span class="ditem">${esc(e.item)} <span class="dtag">vai dar</span></span>`:""}
     </div>`).join("");
+}
+
+function timeAgo(t){
+  const m=Math.floor((Date.now()-t)/60000);
+  if(m<1) return "agora";
+  if(m<60) return "há "+m+" min";
+  const h=Math.floor(m/60);
+  if(h<24) return "há "+h+" h";
+  const d=Math.floor(h/24);
+  return "há "+d+(d===1?" dia":" dias");
+}
+// últimas 5 doações (um Pix dividido entre itens conta uma vez), sem mostrar valor
+function renderLatest(){
+  const el=document.getElementById("latestList");
+  if(!el) return;
+  const g=new Map();
+  donations.forEach(d=>{
+    const k=d.nome+"|"+d.created_at;
+    if(!g.has(k)) g.set(k,{nome:d.nome,t:new Date(d.created_at||0).getTime()});
+  });
+  const last=[...g.values()].sort((a,b)=>b.t-a.t).slice(0,5);
+  el.innerHTML=last.length
+    ? last.map(x=>`<div class="donor-row donation"><span class="dname" style="font-size:13px">💚 ${esc(x.nome)}</span><span class="ditem">${x.t?timeAgo(x.t):""}</span></div>`).join("")
+    : '<div class="donors-empty">Nenhuma doação ainda.</div>';
 }
 
 function render(){
@@ -489,9 +542,11 @@ function render(){
     <button class="givebtn small" data-save="${i.id}">Salvar</button></div>`;
 
   if(!current){
-    hero.innerHTML='<div class="done-msg">🎉 Tudo quitado! Muito obrigado, pessoal!</div>';
+    hero.innerHTML=reservedItems.length
+      ? '<div class="done-msg">💚 Todos os itens que faltam já foram reservados. Obrigado, pessoal!</div>'
+      : '<div class="done-msg">🎉 Tudo quitado! Muito obrigado, pessoal!</div>';
   } else {
-    const pct=Math.min(100,Math.round(100*current.arrecadado/current.meta));
+    const pct=Math.min(100,Math.floor(100*current.arrecadado/current.meta));
     const reserved=isReserved(current.id);
     // reservado: não dá pra saber quanto a pessoa vai gastar, então some o valor/barra
     const valueBlock=reserved
@@ -501,16 +556,16 @@ function render(){
          <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>`;
     hero.innerHTML=`
       <div class="icon">${ICONS[current.id]||"🎁"}</div>
-      <div class="name">${current.name}</div>
+      <div class="name">${esc(current.name)}</div>
       ${valueBlock}
-      <button class="givebtn" data-give="${current.id}" data-name="${current.name}" ${reserved?"disabled":""}>
+      <button class="givebtn" data-give="${current.id}" data-name="${esc(current.name)}" ${reserved?"disabled":""}>
         ${reserved?"Reservado":"🎁 Eu dou esse!"}
       </button>
       ${editFields(current)}`;
   }
 
   const renderRow=(i)=>{
-    const pct=Math.min(100,Math.round(100*i.arrecadado/i.meta));
+    const pct=Math.min(100,Math.floor(100*i.arrecadado/i.meta));
     const reserved=isReserved(i.id);
     const badge=reserved?'<div class="badge-reserved">RESERVADO</div>':"";
     const btnLabel=reserved?"📦":"🎁";
@@ -524,13 +579,13 @@ function render(){
       <div class="main">
         <div class="ic">${ICONS[i.id]||"🎁"}</div>
         <div class="info">
-          <div class="rname">${i.name}</div>
+          <div class="rname">${esc(i.name)}</div>
           ${valueBlock}
           ${editFields(i)}
         </div>
       </div>
       <div class="row-btn">
-        <button class="givebtn small" data-give="${i.id}" data-name="${i.name}" ${reserved?"disabled":""}>
+        <button class="givebtn small" data-give="${i.id}" data-name="${esc(i.name)}" ${reserved?"disabled":""}>
           ${btnLabel}
         </button>
       </div>
@@ -546,7 +601,7 @@ function render(){
         <div class="mini-row">
           <div class="ic">${ICONS[i.id]||"🎁"}</div>
           <div class="info">
-            <div class="rname">${i.name}</div>
+            <div class="rname">${esc(i.name)}</div>
             <div class="rbar"><div class="rbar-in"></div></div>
             <div class="rval">${BRL(i.meta)} — meta atingida! 🎉</div>
           </div>
@@ -563,7 +618,7 @@ function render(){
         <div class="mini-row">
           <div class="ic">${ICONS[i.id]||"🎁"}</div>
           <div class="info">
-            <div class="rname">${i.name}</div>
+            <div class="rname">${esc(i.name)}</div>
             <div class="rval">📦 reservado${r?" por "+r.nome:""}</div>
           </div>
         </div>`;}).join("")
@@ -571,17 +626,21 @@ function render(){
   }
 
   renderDonorsList();
+  renderLatest();
 
   document.querySelectorAll("[data-give]").forEach(btn=>{
     if(!btn.disabled) btn.onclick=()=>openModal(btn.getAttribute("data-give"),btn.getAttribute("data-name"));
   });
   document.querySelectorAll("[data-save]").forEach(btn=>{
-    btn.onclick=()=>{
+    btn.onclick=async()=>{
       const id=btn.getAttribute("data-save");
       const row=btn.closest(".editrow");
       const meta=parseFloat(row.querySelector('[data-f="meta"]').value);
       const arrecadado=parseFloat(row.querySelector('[data-f="arrecadado"]').value);
-      sb.from("items").update({meta,arrecadado}).eq("id",id);
+      btn.disabled=true;
+      const {error}=await sb.from("items").update({meta,arrecadado}).eq("id",id);
+      btn.disabled=false;
+      if(error) alert("Erro ao salvar: "+error.message);
     };
   });
 }
@@ -616,9 +675,18 @@ async function init(){
     .on("postgres_changes",{event:"DELETE",schema:"public",table:"reservations"},p=>{
       reservations=reservations.filter(r=>r.id!==p.old?.id); render();
     })
+    .on("postgres_changes",{event:"DELETE",schema:"public",table:"donations"},p=>{
+      donations=donations.filter(d=>d.id!==p.old?.id); render();
+    })
     .subscribe();
 }
-if(!ADMIN) init();
+if(!ADMIN){
+  init();
+  setInterval(renderLatest,60000);
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
+  document.getElementById("modalName").addEventListener("keydown",e=>{ if(e.key==="Enter") window.confirmReserve(); });
+  document.getElementById("overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeModal(); });
+}
 </script>
 </body>
 </html>
