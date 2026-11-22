@@ -227,6 +227,12 @@ if(ADMIN){
     </div>
 
     <div class="admin-card admin-log">
+      <h3>Reservas ativas</h3>
+      <div class="admin-feedback" id="adResLogFeedback"></div>
+      <div id="adResLog">Carregando…</div>
+    </div>
+
+    <div class="admin-card admin-log">
       <h3>Últimas doações</h3>
       <div class="admin-feedback" id="adLogFeedback"></div>
       <div id="adLog">Carregando…</div>
@@ -234,13 +240,31 @@ if(ADMIN){
   </div>`;
 
   async function adminInit(){
-    const [{data:iData},{data:dData}] = await Promise.all([
+    const [{data:iData},{data:dData},{data:rData}] = await Promise.all([
       sb.from("items").select("id,name,ordem").order("ordem"),
-      sb.from("donations").select("*,items(name)").order("created_at",{ascending:false}).limit(40)
+      sb.from("donations").select("*,items(name)").order("created_at",{ascending:false}).limit(40),
+      sb.from("reservations").select("*,items(name)").order("created_at",{ascending:false})
     ]);
     // popula select de itens
     const sel = document.getElementById("adResItem");
     sel.innerHTML = iData.map(i=>`<option value="${i.id}">${i.name}</option>`).join("");
+    // reservas ativas, com botão de apagar
+    const resLog = document.getElementById("adResLog");
+    if(!rData||!rData.length){ resLog.textContent="Nenhuma reserva ativa."; }
+    else{
+      resLog.innerHTML = rData.map(r=>`<div class="log-item">
+        <div class="log-left">
+          <span class="log-name">📦 ${r.nome}</span>
+          <span class="log-itemname">${r.items?.name||""}</span>
+        </div>
+        <div class="log-right">
+          <button class="log-del" title="Apagar reserva" data-res-del="${r.id}">🗑️</button>
+        </div>
+      </div>`).join("");
+      document.querySelectorAll("[data-res-del]").forEach(btn=>{
+        btn.onclick=()=>adminDeleteReservation(btn.getAttribute("data-res-del"),btn);
+      });
+    }
     // log
     const log = document.getElementById("adLog");
     if(!dData||!dData.length){log.textContent="Nenhuma doação ainda.";return;}
@@ -263,6 +287,21 @@ if(ADMIN){
       );
     });
   }
+
+  window.adminDeleteReservation = async function(id, btn){
+    if(!confirm("Apagar esta reserva? O item volta a ficar livre.")) return;
+    btn.disabled = true;
+    const fb = document.getElementById("adResLogFeedback");
+    fb.textContent = "Apagando…"; fb.className = "admin-feedback";
+    const {data:delData, error:delErr} = await sb.from("reservations").delete().eq("id", id).select();
+    if(delErr){ fb.textContent="Erro ao apagar: "+delErr.message; fb.className="admin-feedback err"; btn.disabled=false; return; }
+    if(!delData || !delData.length){
+      fb.textContent="Nada foi apagado — falta a política de DELETE para 'anon' na tabela reservations.";
+      fb.className="admin-feedback err"; btn.disabled=false; return;
+    }
+    fb.textContent="✓ Reserva apagada! O item voltou pra fila."; fb.className="admin-feedback ok";
+    adminInit();
+  };
 
   window.adminDeleteDonation = async function(id, itemId, valor, btn){
     if(!confirm("Apagar esta doação? O valor também será subtraído do total do item.")) return;
@@ -388,14 +427,19 @@ function renderDonorsList(){
   if(!el) return;
   const itemName=(id)=>{ const it=items.find(i=>i.id===id); return it?it.name:""; };
 
-  // um Pix dividido entre vários itens gera várias linhas com o mesmo nome e o mesmo
-  // created_at: vira uma entrada só, com o valor somado
+  // soma tudo que a mesma pessoa doou (vários Pix, ou um Pix dividido entre itens) numa entrada só.
+  // o nome é comparado sem diferenciar maiúsculas, acentos e espaços a mais
+  const chave=(n)=>String(n||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
   const grupos=new Map();
   donations.forEach(d=>{
-    const key=d.created_at?(d.nome+"|"+d.created_at):("id|"+d.id);
-    const g=grupos.get(key);
-    if(g) g.valor+=Number(d.valor||0);
-    else grupos.set(key,{type:"donation",nome:d.nome,valor:Number(d.valor||0),ord:new Date(d.created_at||0).getTime()});
+    const k=chave(d.nome);
+    const t=new Date(d.created_at||0).getTime();
+    const g=grupos.get(k);
+    if(!g) grupos.set(k,{type:"donation",nome:d.nome,valor:Number(d.valor||0),ord:t});
+    else{
+      g.valor+=Number(d.valor||0);
+      if(t>=g.ord){ g.ord=t; g.nome=d.nome; }   // mostra o nome como foi digitado na doação mais recente
+    }
   });
 
   // doadores do que mais doou pro que menos doou (empate: o mais recente primeiro)
@@ -568,6 +612,9 @@ async function init(){
     })
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"reservations"},p=>{
       reservations.push(p.new); render();
+    })
+    .on("postgres_changes",{event:"DELETE",schema:"public",table:"reservations"},p=>{
+      reservations=reservations.filter(r=>r.id!==p.old?.id); render();
     })
     .subscribe();
 }
