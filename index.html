@@ -157,6 +157,10 @@
         <h2>🎉 Itens já quitados</h2>
         <div id="completedList"></div>
       </div>
+      <div class="donors-card">
+        <h2>📦 Itens reservados</h2>
+        <div id="reservedList"></div>
+      </div>
     </div>
     <div class="col-right">
       <div id="hero" class="hero"><div style="color:var(--muted);padding:40px 0">Carregando…</div></div>
@@ -395,9 +399,10 @@ function renderDonorsList(){
   });
 
   // tamanho do nome proporcional ao valor da doação em relação às outras
-  const MIN_PX=12, MAX_PX=26;
+  const MIN_PX=11, MAX_PX=30;
   const maior=Math.max(1,...[...grupos.values()].map(g=>g.valor));
-  const fontPx=(v)=>Math.round((MIN_PX+(MAX_PX-MIN_PX)*Math.sqrt(v/maior))*10)/10;
+  // linear: a maior doação usa MAX_PX e as outras ficam na mesma proporção (com piso MIN_PX pra continuar legível)
+  const fontPx=(v)=>Math.round(Math.max(MIN_PX,MAX_PX*(v/maior))*10)/10;
 
   const entries=[
     ...[...grupos.values()].map(g=>({...g,item:"",px:fontPx(g.valor)})),
@@ -420,7 +425,8 @@ function render(){
   const hero=document.getElementById("hero");
   const list=document.getElementById("list");
   const sorted=[...items].sort((a,b)=>a.ordem-b.ordem);
-  const pending=sorted.filter(i=>!isCompleted(i));
+  const pending=sorted.filter(i=>!isCompleted(i)&&!isReserved(i.id));
+  const reservedItems=sorted.filter(i=>!isCompleted(i)&&isReserved(i.id));
   const completed=sorted.filter(i=>isCompleted(i));
   const current=pending[0];
 
@@ -493,6 +499,22 @@ function render(){
           </div>
         </div>`).join("")
       : '<div class="donors-empty">Nenhum item quitado ainda.</div>';
+  }
+
+  const reservedListEl=document.getElementById("reservedList");
+  if(reservedListEl){
+    reservedListEl.innerHTML = reservedItems.length
+      ? reservedItems.map(i=>{
+          const r=reservations.find(x=>x.item_id===i.id);
+          return `
+        <div class="mini-row">
+          <div class="ic">${ICONS[i.id]||"🎁"}</div>
+          <div class="info">
+            <div class="rname">${i.name}</div>
+            <div class="rval">📦 reservado${r?" por "+r.nome:""}</div>
+          </div>
+        </div>`;}).join("")
+      : '<div class="donors-empty">Nenhum item reservado ainda.</div>';
   }
 
   renderDonorsList();
