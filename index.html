@@ -4,6 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CHÁ DE CASA NOVA DO VINICIUS</title>
+<meta name="description" content="Chá de casa nova do Vinicius: domingo, 06 de dezembro, a partir das 12h. Lista de presentes e Pix.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:url" content="https://ovnicardoso.github.io/chadecasanova/">
+<meta property="og:title" content="Chá de Casa Nova do Vinicius 💚">
+<meta property="og:description" content="Domingo, 06 de dezembro, a partir das 12h. Veja a lista de presentes e como ajudar com Pix.">
+<meta property="og:image" content="https://ovnicardoso.github.io/chadecasanova/convite.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Convite: Chá de casa nova do Vinicius, domingo, 06 de dezembro, a partir das 12h">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -152,6 +162,9 @@
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   @media(max-width:760px){.hero .givebtn{width:100%;}.hero .name{font-size:26px;}}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+  .extra-btn{width:100%;margin-bottom:16px;padding:12px;border-radius:14px;border:1px dashed var(--accent);background:transparent;color:var(--accent);font-weight:800;font-size:14px;cursor:pointer;}
+  .extra-btn:hover{background:rgba(34,197,94,.08);}
+  .modal input+input{margin-top:-4px;}
 </style>
 </head>
 <body>
@@ -192,6 +205,7 @@
     </div>
     <div class="col-right">
       <div id="hero" class="hero"><div style="color:var(--muted);padding:40px 0">Carregando…</div></div>
+      <button class="extra-btn" onclick="openExtra()">➕ Quero doar algo que não está na lista</button>
       <div id="list" class="list"></div>
     </div>
   </div>
@@ -206,6 +220,20 @@
     <div class="modal-btns">
       <button class="cancel" onclick="closeModal()">Cancelar</button>
       <button class="confirm" onclick="confirmReserve()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: item fora da lista -->
+<div class="overlay" id="overlayExtra">
+  <div class="modal">
+    <h3>➕ Doar algo fora da lista</h3>
+    <p>Conta o que você quer dar. Vai aparecer em "Itens reservados".</p>
+    <input id="extraItem" type="text" placeholder="O que é? (ex: ventilador)" maxlength="80">
+    <input id="extraNome" type="text" placeholder="Seu nome completo" maxlength="60">
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeExtra()">Cancelar</button>
+      <button class="confirm" id="extraConfirm" onclick="confirmExtra()">Confirmar</button>
     </div>
   </div>
 </div>
@@ -256,6 +284,12 @@ if(ADMIN){
     </div>
 
     <div class="admin-card admin-log">
+      <h3>Itens sugeridos (fora da lista)</h3>
+      <div class="admin-feedback" id="adExtraLogFeedback"></div>
+      <div id="adExtraLog">Carregando…</div>
+    </div>
+
+    <div class="admin-card admin-log">
       <h3>Reservas ativas</h3>
       <div class="admin-feedback" id="adResLogFeedback"></div>
       <div id="adResLog">Carregando…</div>
@@ -269,14 +303,27 @@ if(ADMIN){
   </div>`;
 
   async function adminInit(){
-    const [{data:iData},{data:dData},{data:rData}] = await Promise.all([
+    const [{data:iData},{data:dData},{data:rData},{data:xData}] = await Promise.all([
       sb.from("items").select("id,name,ordem").order("ordem"),
       sb.from("donations").select("*,items(name)").order("created_at",{ascending:false}).limit(40),
-      sb.from("reservations").select("*,items(name)").order("created_at",{ascending:false})
+      sb.from("reservations").select("*,items(name)").order("created_at",{ascending:false}),
+      sb.from("extras").select("*").order("created_at",{ascending:false})
     ]);
     // popula select de itens
     const sel = document.getElementById("adResItem");
     sel.innerHTML = iData.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join("");
+    // itens sugeridos pelas pessoas, com botão de apagar
+    const exLog = document.getElementById("adExtraLog");
+    if(!xData||!xData.length){ exLog.textContent="Nenhum item sugerido."; }
+    else{
+      exLog.innerHTML = xData.map(x=>`<div class="log-item">
+        <div class="log-left"><span class="log-name">🎁 ${esc(x.item)}</span><span class="log-itemname">${esc(x.nome)}</span></div>
+        <div class="log-right"><button class="log-del" title="Apagar" data-extra-del="${x.id}">🗑️</button></div>
+      </div>`).join("");
+      document.querySelectorAll("[data-extra-del]").forEach(btn=>{
+        btn.onclick=()=>adminDeleteExtra(btn.getAttribute("data-extra-del"),btn);
+      });
+    }
     // reservas ativas, com botão de apagar
     const resLog = document.getElementById("adResLog");
     if(!rData||!rData.length){ resLog.textContent="Nenhuma reserva ativa."; }
@@ -316,6 +363,19 @@ if(ADMIN){
       );
     });
   }
+
+  window.adminDeleteExtra = async function(id, btn){
+    if(!confirm("Apagar este item sugerido?")) return;
+    btn.disabled = true;
+    const fb = document.getElementById("adExtraLogFeedback");
+    const {data:del,error} = await sb.from("extras").delete().eq("id", id).select();
+    if(error||!del||!del.length){
+      fb.textContent = error ? "Erro: "+error.message : "Nada foi apagado.";
+      fb.className = "admin-feedback err"; btn.disabled = false; return;
+    }
+    fb.textContent = "✓ Item apagado!"; fb.className = "admin-feedback ok";
+    adminInit();
+  };
 
   window.adminDeleteReservation = async function(id, btn){
     if(!confirm("Apagar esta reserva? O item volta a ficar livre.")) return;
@@ -407,7 +467,7 @@ if(ADMIN){
 const ICONS={colchao:"🛏️",cama:"🛌",geladeira:"🧊",fogao:"🍳",panelas:"🍳",pratos:"🍽️",talheres:"🍴",copos:"🥤",tigelas:"🥣",frigideira:"🍳",utensilios:"🥄",tabua:"🔪",potes:"🥡",jogoscama:"🛏️",travesseiros:"💤",cobertor:"🛌",toalhas:"🚿",kitbanheiro:"🚽",vassoura:"🧹",moprodo:"🧼",panos:"🧽",limpeza:"🧴",lixeiras:"🗑️",baldes:"🪣",armariocozinha:"🗄️",armariomultiuso:"🗄️",cabideira:"👚",caixas:"📦",cabides:"👚",sofa:"🛋️",rack:"📺",espelho:"🪞",organizadores:"📦",microondas:"📡",liquidificador:"🫙",escorredor_louca:"🍽️",assadeiras:"🥘",espremedor:"🍋",garrafa_termica:"☕",porta_sabonete:"🧴",cesto_roupa:"🧺",lampadas:"💡",lixeira_cozinha:"🗑️",lixeira_banheiro:"🗑️",pano_prato:"🧻",potes_hermeticos:"🥡",mesa_cadeiras:"🪑",tabua_cozinha:"🔪",organizador_pia:"🧹"};
 const BRL=n=>"R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:Number.isInteger(+n)?0:2,maximumFractionDigits:2});
 
-let items=[], donations=[], reservations=[], pendingReserveId=null;
+let items=[], donations=[], reservations=[], extras=[], pendingReserveId=null;
 
 function copyPix(){
   const key="ovnicardoso@gmail.com";
@@ -487,6 +547,7 @@ function renderDonorsList(){
   // reservas ficam depois dos doadores, mais recentes primeiro
   const reservas=reservations
     .map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),px:BASE_PX,ord:new Date(r.created_at||0).getTime()}))
+    .concat(extras.map(x=>({type:"reservation",nome:x.nome,item:x.item,px:BASE_PX,ord:new Date(x.created_at||0).getTime()})))
     .sort((x,y)=>y.ord-x.ord);
 
   const entries=[...doadores.map(g=>({...g,item:""})),...reservas];
@@ -500,6 +561,28 @@ function renderDonorsList(){
       <span class="dname" style="font-size:${e.px}px">${e.type==="donation"?"💚":"📦"} ${esc(e.nome)}</span>
       ${e.type==="reservation"?`<span class="ditem">${esc(e.item)} <span class="dtag">vai dar</span></span>`:""}
     </div>`).join("");
+}
+
+function openExtra(){
+  document.getElementById("extraItem").value="";
+  document.getElementById("extraNome").value="";
+  document.getElementById("overlayExtra").classList.add("open");
+  setTimeout(()=>document.getElementById("extraItem").focus(),100);
+}
+function closeExtra(){ document.getElementById("overlayExtra").classList.remove("open"); }
+async function confirmExtra(){
+  const item=document.getElementById("extraItem").value.trim();
+  const nome=document.getElementById("extraNome").value.trim();
+  if(!item) return document.getElementById("extraItem").focus();
+  if(!nome) return document.getElementById("extraNome").focus();
+  const btn=document.getElementById("extraConfirm"); btn.disabled=true;
+  const {error}=await sb.from("extras").insert({nome,item});
+  btn.disabled=false;
+  if(error){ alert("Não consegui salvar agora. Tenta de novo?"); return; }
+  closeExtra();
+  const {data}=await sb.from("extras").select("*");
+  if(data) extras=data;
+  render();
 }
 
 function timeAgo(t){
@@ -609,9 +692,17 @@ function render(){
       : '<div class="donors-empty">Nenhum item quitado ainda.</div>';
   }
 
+  const extrasHtml=[...extras].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(x=>`
+        <div class="mini-row">
+          <div class="ic">🎁</div>
+          <div class="info">
+            <div class="rname">${esc(x.item)}</div>
+            <div class="rval">📦 reservado por ${esc(x.nome)}</div>
+          </div>
+        </div>`).join("");
   const reservedListEl=document.getElementById("reservedList");
   if(reservedListEl){
-    reservedListEl.innerHTML = reservedItems.length
+    reservedListEl.innerHTML = (reservedItems.length||extras.length)
       ? reservedItems.map(i=>{
           const r=reservations.find(x=>x.item_id===i.id);
           return `
@@ -621,7 +712,7 @@ function render(){
             <div class="rname">${esc(i.name)}</div>
             <div class="rval">📦 reservado${r?" por "+r.nome:""}</div>
           </div>
-        </div>`;}).join("")
+        </div>`;}).join("") + extrasHtml
       : '<div class="donors-empty">Nenhum item reservado ainda.</div>';
   }
 
@@ -646,16 +737,17 @@ function render(){
 }
 
 async function init(){
-  const [{data:iData,error:iErr},{data:dData},{data:rData}]=await Promise.all([
+  const [{data:iData,error:iErr},{data:dData},{data:rData},{data:eData}]=await Promise.all([
     sb.from("items").select("*"),
     sb.from("donations").select("*"),
-    sb.from("reservations").select("*")
+    sb.from("reservations").select("*"),
+    sb.from("extras").select("*")
   ]);
   if(iErr||!iData){
     document.getElementById("hero").innerHTML='<div style="color:var(--muted);padding:40px 0">Não consegui conectar ao banco.</div>';
     return;
   }
-  items=iData; donations=dData||[]; reservations=rData||[];
+  items=iData; donations=dData||[]; reservations=rData||[]; extras=eData||[];
   render();
 
   // realtime
@@ -670,7 +762,7 @@ async function init(){
       donations.push(p.new); render();
     })
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"reservations"},p=>{
-      reservations.push(p.new); render();
+      if(!reservations.some(r=>r.id===p.new.id)) reservations.push(p.new); render();
     })
     .on("postgres_changes",{event:"DELETE",schema:"public",table:"reservations"},p=>{
       reservations=reservations.filter(r=>r.id!==p.old?.id); render();
@@ -678,12 +770,20 @@ async function init(){
     .on("postgres_changes",{event:"DELETE",schema:"public",table:"donations"},p=>{
       donations=donations.filter(d=>d.id!==p.old?.id); render();
     })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"extras"},p=>{
+      if(!extras.some(x=>x.id===p.new.id)) extras.push(p.new); render();
+    })
+    .on("postgres_changes",{event:"DELETE",schema:"public",table:"extras"},p=>{
+      extras=extras.filter(x=>x.id!==p.old?.id); render();
+    })
     .subscribe();
 }
 if(!ADMIN){
   init();
   setInterval(renderLatest,60000);
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ closeModal(); closeExtra(); } });
+  document.getElementById("extraNome").addEventListener("keydown",e=>{ if(e.key==="Enter") confirmExtra(); });
+  document.getElementById("overlayExtra").addEventListener("click",e=>{ if(e.target.id==="overlayExtra") closeExtra(); });
   document.getElementById("modalName").addEventListener("keydown",e=>{ if(e.key==="Enter") window.confirmReserve(); });
   document.getElementById("overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeModal(); });
 }
