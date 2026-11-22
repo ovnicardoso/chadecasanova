@@ -264,6 +264,15 @@ window.confirmReserve=async function(){
   render();
 };
 
+function donFontSize(valor, itemId){
+  const don = donations.filter(d=>d.item_id===itemId);
+  if(don.length<=1) return 12;
+  const max = Math.max(...don.map(d=>d.valor));
+  const min = Math.min(...don.map(d=>d.valor));
+  if(max===min) return 12;
+  return Math.round(10 + (valor - min) / (max - min) * 8);
+}
+
 function getHelpers(itemId){
   const res=reservations.filter(r=>r.item_id===itemId);
   const don=donations.filter(d=>d.item_id===itemId);
@@ -274,7 +283,7 @@ function helpersHTML(itemId){
   const {res,don}=getHelpers(itemId);
   if(!res.length && !don.length) return "";
   const lines=[
-    ...don.map(d=>`<div class="helper-item donation">💚 ${d.nome}<br><span style="font-size:10px">${BRL(d.valor)}</span></div>`),
+    ...don.map(d=>`<div class="helper-item donation" style="font-size:${donFontSize(d.valor,itemId)}px">💚 ${d.nome}</div>`),
     ...res.map(r=>`<div class="helper-item reservation">📦 ${r.nome}<br><span style="font-size:10px">vai dar</span></div>`)
   ];
   return `<div class="helpers">${lines.join("")}</div>`;
