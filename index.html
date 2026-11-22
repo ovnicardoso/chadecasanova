@@ -232,7 +232,7 @@ if(ADMIN){
   async function adminInit(){
     const [{data:iData},{data:dData}] = await Promise.all([
       sb.from("items").select("id,name,ordem").order("ordem"),
-      sb.from("donations").select("*,items(name)").order("id",{ascending:false}).limit(20)
+      sb.from("donations").select("*,items(name)").order("created_at",{ascending:false}).limit(40)
     ]);
     // popula select de itens
     const sel = document.getElementById("adResItem");
@@ -308,6 +308,7 @@ if(ADMIN){
     const btn = document.getElementById("adBtn");
     if(!nome||!valor||valor<=0){fb.textContent="Preencha nome e valor.";fb.className="admin-feedback err";return;}
     btn.disabled=true; fb.textContent="Registrando…"; fb.className="admin-feedback";
+    // o banco divide o valor: o que passa da meta de um item vai pro próximo
     const {error} = await sb.rpc("add_pix",{amount:valor, nome});
     if(error){fb.textContent="Erro: "+error.message;fb.className="admin-feedback err";}
     else{fb.textContent="✓ Pix registrado!";fb.className="admin-feedback ok";document.getElementById("adNome").value="";document.getElementById("adValor").value="";}
@@ -377,14 +378,24 @@ window.confirmReserve=async function(){
 function isReserved(itemId){ return reservations.some(r=>r.item_id===itemId); }
 function isCompleted(item){ return item.arrecadado>=item.meta; }
 
-// lista única de doadores/reservas — separada dos itens, não gruda o nome no item
+// lista única de doadores/reservas — doação NÃO mostra item; só reserva mostra o item
 function renderDonorsList(){
   const el=document.getElementById("donorsList");
   if(!el) return;
   const itemName=(id)=>{ const it=items.find(i=>i.id===id); return it?it.name:""; };
+
+  // um Pix que foi dividido entre vários itens gera várias linhas com o mesmo
+  // nome e o mesmo created_at — aparece uma vez só na lista
+  const grupos=new Map();
+  donations.forEach(d=>{
+    const key=d.created_at?(d.nome+"|"+d.created_at):("id|"+d.id);
+    const g=grupos.get(key);
+    if(!g) grupos.set(key,{type:"donation",nome:d.nome,item:"",ord:new Date(d.created_at||0).getTime()});
+  });
+
   const entries=[
-    ...donations.map(d=>({type:"donation",nome:d.nome,item:itemName(d.item_id),ord:d.id})),
-    ...reservations.map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),ord:r.id}))
+    ...grupos.values(),
+    ...reservations.map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),ord:new Date(r.created_at||0).getTime()}))
   ].sort((a,b)=>(b.ord||0)-(a.ord||0));
 
   if(!entries.length){
@@ -394,7 +405,7 @@ function renderDonorsList(){
   el.innerHTML=entries.map(e=>`
     <div class="donor-row ${e.type}">
       <span class="dname">${e.type==="donation"?"💚":"📦"} ${e.nome}</span>
-      <span class="ditem">${e.item}${e.type==="reservation"?' <span class="dtag">vai dar</span>':""}</span>
+      ${e.type==="reservation"?`<span class="ditem">${e.item} <span class="dtag">vai dar</span></span>`:""}
     </div>`).join("");
 }
 
