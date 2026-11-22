@@ -224,6 +224,7 @@ if(ADMIN){
 
     <div class="admin-card admin-log">
       <h3>Últimas doações</h3>
+      <div class="admin-feedback" id="adLogFeedback"></div>
       <div id="adLog">Carregando…</div>
     </div>
   </div>`;
@@ -262,14 +263,41 @@ if(ADMIN){
   window.adminDeleteDonation = async function(id, itemId, valor, btn){
     if(!confirm("Apagar esta doação? O valor também será subtraído do total do item.")) return;
     btn.disabled = true;
+    const fb = document.getElementById("adLogFeedback");
+    fb.textContent = "Apagando…"; fb.className = "admin-feedback";
+
+    // 1) tenta apagar e pede de volta a(s) linha(s) apagada(s), pra saber se realmente apagou
+    const {data:delData, error:delErr} = await sb.from("donations").delete().eq("id", id).select();
+
+    if(delErr){
+      fb.textContent = "Erro ao apagar: " + delErr.message;
+      fb.className = "admin-feedback err";
+      btn.disabled = false;
+      return;
+    }
+    if(!delData || !delData.length){
+      fb.textContent = "Nada foi apagado — provavelmente falta uma política (policy) de DELETE liberada para a role 'anon' na tabela donations, no Supabase.";
+      fb.className = "admin-feedback err";
+      btn.disabled = false;
+      return;
+    }
+
+    // 2) doação apagada de verdade — agora corrige o total do item
     if(itemId){
-      const {data:itemRow} = await sb.from("items").select("arrecadado").eq("id", itemId).single();
-      if(itemRow){
+      const {data:itemRow, error:itemErr} = await sb.from("items").select("arrecadado").eq("id", itemId).single();
+      if(!itemErr && itemRow){
         const novoArrecadado = Math.max(0, Number(itemRow.arrecadado||0) - Number(valor||0));
-        await sb.from("items").update({arrecadado:novoArrecadado}).eq("id", itemId);
+        const {error:updErr} = await sb.from("items").update({arrecadado:novoArrecadado}).eq("id", itemId);
+        if(updErr){
+          fb.textContent = "Doação apagada, mas não consegui atualizar o total do item: " + updErr.message;
+          fb.className = "admin-feedback err";
+          adminInit();
+          return;
+        }
       }
     }
-    await sb.from("donations").delete().eq("id", id);
+    fb.textContent = "✓ Doação apagada!";
+    fb.className = "admin-feedback ok";
     adminInit();
   };
 
@@ -389,12 +417,16 @@ function render(){
   } else {
     const pct=Math.min(100,Math.round(100*current.arrecadado/current.meta));
     const reserved=isReserved(current.id);
+    // reservado: não dá pra saber quanto a pessoa vai gastar, então some o valor/barra
+    const valueBlock=reserved
+      ? ""
+      : `<div class="bar-outer"><div class="bar-inner" style="width:${pct}%"></div><div class="bar-label">${pct}%</div></div>
+         <div class="values">${BRL(current.arrecadado)} de ${BRL(current.meta)}</div>
+         <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>`;
     hero.innerHTML=`
       <div class="icon">${ICONS[current.id]||"🎁"}</div>
       <div class="name">${current.name}</div>
-      <div class="bar-outer"><div class="bar-inner" style="width:${pct}%"></div><div class="bar-label">${pct}%</div></div>
-      <div class="values">${BRL(current.arrecadado)} de ${BRL(current.meta)}</div>
-      <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>
+      ${valueBlock}
       <button class="givebtn" data-give="${current.id}" data-name="${current.name}" ${reserved?"disabled":""}>
         ${reserved?"Reservado":"🎁 Eu dou esse!"}
       </button>
@@ -406,14 +438,18 @@ function render(){
     const reserved=isReserved(i.id);
     const badge=reserved?'<div class="badge-reserved">RESERVADO</div>':"";
     const btnLabel=reserved?"📦":"🎁";
+    // reservado: não dá pra saber quanto a pessoa vai gastar, então some o valor/barra
+    const valueBlock=reserved
+      ? ""
+      : `<div class="rbar"><div class="rbar-in" style="width:${pct}%"></div></div>
+         <div class="rval">${BRL(i.arrecadado)} de ${BRL(i.meta)}</div>`;
     return `<div class="row${reserved?" reserved":""}">
       ${badge}
       <div class="main">
         <div class="ic">${ICONS[i.id]||"🎁"}</div>
         <div class="info">
           <div class="rname">${i.name}</div>
-          <div class="rbar"><div class="rbar-in" style="width:${pct}%"></div></div>
-          <div class="rval">${BRL(i.arrecadado)} de ${BRL(i.meta)}</div>
+          ${valueBlock}
           ${editFields(i)}
         </div>
       </div>
