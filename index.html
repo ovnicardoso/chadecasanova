@@ -122,9 +122,15 @@
   .admin-feedback.err{color:#f87171;}
   .admin-log{margin-top:16px;}
   .admin-log h3{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 8px;}
-  .log-item{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--track);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .log-item{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--track);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .log-item .log-left{display:flex;flex-direction:column;gap:2px;min-width:0;}
   .log-item .log-name{font-weight:600;}
-  .log-item .log-val{color:var(--accent);font-weight:700;}
+  .log-item .log-itemname{font-size:11px;color:var(--muted);font-weight:400;}
+  .log-item .log-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .log-item .log-val{color:var(--accent);font-weight:700;white-space:nowrap;}
+  .log-del{background:none;border:none;color:#f87171;font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;line-height:1;}
+  .log-del:hover{background:rgba(248,113,113,.15);}
+  .log-del:disabled{opacity:.4;cursor:default;}
 </style>
 </head>
 <body>
@@ -233,8 +239,39 @@ if(ADMIN){
     // log
     const log = document.getElementById("adLog");
     if(!dData||!dData.length){log.textContent="Nenhuma doação ainda.";return;}
-    log.innerHTML = dData.map(d=>`<div class="log-item"><span class="log-name">💚 ${d.nome}</span><span class="log-val">R$ ${Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span></div>`).join("");
+    log.innerHTML = dData.map(d=>`<div class="log-item">
+      <div class="log-left">
+        <span class="log-name">💚 ${d.nome}</span>
+        <span class="log-itemname">${d.items?.name||""}</span>
+      </div>
+      <div class="log-right">
+        <span class="log-val">R$ ${Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span>
+        <button class="log-del" title="Apagar doação" data-del-id="${d.id}" data-del-item="${d.item_id||""}" data-del-valor="${d.valor}">🗑️</button>
+      </div>
+    </div>`).join("");
+    document.querySelectorAll("[data-del-id]").forEach(btn=>{
+      btn.onclick=()=>adminDeleteDonation(
+        btn.getAttribute("data-del-id"),
+        btn.getAttribute("data-del-item"),
+        parseFloat(btn.getAttribute("data-del-valor")),
+        btn
+      );
+    });
   }
+
+  window.adminDeleteDonation = async function(id, itemId, valor, btn){
+    if(!confirm("Apagar esta doação? O valor também será subtraído do total do item.")) return;
+    btn.disabled = true;
+    if(itemId){
+      const {data:itemRow} = await sb.from("items").select("arrecadado").eq("id", itemId).single();
+      if(itemRow){
+        const novoArrecadado = Math.max(0, Number(itemRow.arrecadado||0) - Number(valor||0));
+        await sb.from("items").update({arrecadado:novoArrecadado}).eq("id", itemId);
+      }
+    }
+    await sb.from("donations").delete().eq("id", id);
+    adminInit();
+  };
 
   window.adminPix = async function(){
     const nome = document.getElementById("adNome").value.trim();
