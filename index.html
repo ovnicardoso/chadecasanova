@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CHÁ DE CASA NOVA DO VINICIUS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0f1115;--card:#1a1d24;--text:#f2f2f2;--muted:#9aa0aa;
+    --accent:#22c55e;--track:#2a2e37;--border:#2a2e37;--reserved:#f59e0b;
+  }
+  @media(prefers-color-scheme:light){
+    :root{--bg:#f5f6f8;--card:#fff;--text:#1a1d24;--muted:#5b6270;--accent:#16a34a;--track:#e6e8ec;--border:#e6e8ec;}
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;padding:24px 16px 48px;}
+  .wrap{width:100%;max-width:680px;}
+  h1{font-size:22px;margin:0 0 20px;text-align:center;font-weight:900;letter-spacing:1px;}
+
+  /* PIX BOX */
+  .pix-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;text-align:center;margin-bottom:20px;}
+  .pix-box h2{margin:0 0 12px;font-size:16px;font-weight:700;}
+  .pix-box img{width:180px;height:180px;border-radius:8px;background:#fff;padding:8px;}
+  .pix-key{margin-top:10px;font-size:14px;color:var(--muted);}
+  .pix-key span{display:inline-block;background:var(--track);border-radius:8px;padding:6px 12px;font-weight:700;color:var(--text);font-size:15px;margin-top:4px;cursor:pointer;user-select:all;}
+  .copied{color:var(--accent);font-size:12px;margin-top:4px;opacity:0;transition:opacity .3s;}
+
+  /* HERO */
+  .hero{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 24px;text-align:center;margin-bottom:24px;}
+  .hero .icon{font-size:64px;line-height:1;}
+  .hero .name{font-size:32px;font-weight:800;margin:8px 0 20px;}
+  .bar-outer{background:var(--track);border-radius:999px;height:28px;overflow:hidden;position:relative;margin-bottom:14px;}
+  .bar-inner{background:linear-gradient(90deg,var(--accent),#4ade80);height:100%;transition:width .4s ease;}
+  .bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;mix-blend-mode:difference;}
+  .values{font-size:20px;font-weight:700;}
+  .missing{color:var(--muted);font-size:15px;margin-top:4px;}
+  .done-msg{font-size:20px;font-weight:700;color:var(--accent);}
+  .givebtn{margin-top:18px;padding:12px 20px;border-radius:999px;border:none;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer;white-space:nowrap;}
+  .givebtn.small{margin-top:0;padding:8px 14px;font-size:13px;}
+  .givebtn:disabled{opacity:.5;cursor:default;}
+
+  /* LISTA */
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .row{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;position:relative;}
+  .row.reserved{border-color:var(--reserved);}
+  .badge-reserved{position:absolute;top:8px;right:8px;background:var(--reserved);color:#000;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;letter-spacing:.5px;}
+  .row .ic{font-size:26px;padding-top:2px;}
+  .row .info{flex:1;min-width:0;}
+  .row .rname{font-weight:700;font-size:15px;padding-right:70px;}
+  .row .rbar{background:var(--track);border-radius:999px;height:8px;margin-top:6px;overflow:hidden;}
+  .row .rbar-in{background:var(--accent);height:100%;}
+  .row .rval{font-size:12px;color:var(--muted);margin-top:4px;}
+
+  /* QUEM AJUDOU */
+  .helpers{min-width:120px;max-width:140px;display:flex;flex-direction:column;gap:4px;padding-top:2px;}
+  .helper-item{font-size:11px;color:var(--muted);line-height:1.3;word-break:break-word;}
+  .helper-item.donation{color:var(--accent);}
+  .helper-item.reservation{color:var(--reserved);}
+
+  /* BOTÃO */
+  .row-btn{display:flex;align-items:flex-end;padding-top:2px;}
+
+  /* MODAL */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+  .overlay.open{display:flex;}
+  .modal{background:var(--card);border-radius:16px;padding:24px;width:90%;max-width:360px;text-align:center;}
+  .modal h3{margin:0 0 8px;font-size:18px;}
+  .modal p{margin:0 0 16px;color:var(--muted);font-size:14px;}
+  .modal input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px;margin-bottom:12px;}
+  .modal-btns{display:flex;gap:8px;}
+  .modal-btns button{flex:1;padding:10px;border-radius:10px;border:none;font-weight:700;cursor:pointer;font-size:14px;}
+  .modal-btns .confirm{background:var(--accent);color:#fff;}
+  .modal-btns .cancel{background:var(--track);color:var(--text);}
+
+  .edit-banner{background:#78350f;color:#fde68a;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;text-align:center;}
+  .editrow{display:flex;gap:6px;margin-top:8px;}
+  .editrow input{width:80px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);}
+
+  /* ADMIN */
+  .admin-wrap{width:100%;max-width:680px;padding:24px 16px 48px;}
+  .admin-banner{background:#1e3a5f;color:#93c5fd;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:20px;text-align:center;font-weight:700;}
+  .admin-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;}
+  .admin-card h2{margin:0 0 16px;font-size:16px;font-weight:700;}
+  .admin-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+  .admin-field label{font-size:12px;color:var(--muted);font-weight:600;}
+  .admin-field input{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px;}
+  .admin-btn{width:100%;padding:12px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:800;font-size:15px;cursor:pointer;margin-top:4px;}
+  .admin-btn:disabled{opacity:.5;cursor:default;}
+  .admin-feedback{font-size:13px;margin-top:8px;min-height:18px;text-align:center;}
+  .admin-feedback.ok{color:var(--accent);}
+  .admin-feedback.err{color:#f87171;}
+  .admin-log{margin-top:16px;}
+  .admin-log h3{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 8px;}
+  .log-item{font-size:13px;padding:8px 10px;border-radius:8px;background:var(--track);margin-bottom:6px;display:flex;justify-content:space-between;}
+  .log-item .log-name{font-weight:600;}
+  .log-item .log-val{color:var(--accent);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CHÁ DE CASA NOVA DO VINICIUS</h1>
+
+  <div class="pix-box">
+    <h2>💚 Manda um Pix!</h2>
+    <img src="qrcode.jfif" alt="QR Code Pix" onerror="this.style.display='none'">
+    <div class="pix-key">Chave Pix:</div>
+    <span id="pixKey" onclick="copyPix()">ovnicardoso@gmail.com</span>
+    <div class="copied" id="copiedMsg">Copiado! ✓</div>
+  </div>
+
+  <div id="editBanner"></div>
+  <div id="hero" class="hero"><div style="color:var(--muted);padding:40px 0">Carregando…</div></div>
+  <div id="list" class="list"></div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>🎁 Eu dou esse!</h3>
+    <p id="modalItemName"></p>
+    <input id="modalName" type="text" placeholder="Seu nome completo" maxlength="60">
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal()">Cancelar</button>
+      <button class="confirm" onclick="confirmReserve()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://hcmxkywkjsipadaiomev.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhjbXhreXdranNpcGFkYWlvbWV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3OTM4OTksImV4cCI6MjEwNjM2OTg5OX0.gu5zaaOBd5qKdFtYJa2DSNMaRwfvH0_FE2wJXXe48wU";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const EDIT = new URLSearchParams(location.search).get("edit") === "1";
+const ADMIN = new URLSearchParams(location.search).get("admin") === "1";
+
+// ── PAINEL ADMIN ──────────────────────────────────────────────
+if(ADMIN){
+  document.body.innerHTML = `
+  <div class="admin-wrap">
+    <h1>CHÁ DE CASA NOVA DO VINICIUS</h1>
+    <div class="admin-banner">🔐 Painel Admin</div>
+
+    <div class="admin-card">
+      <h2>💚 Registrar Pix recebido</h2>
+      <div class="admin-field">
+        <label>Nome do doador</label>
+        <input id="adNome" type="text" placeholder="Maria Silva" maxlength="60">
+      </div>
+      <div class="admin-field">
+        <label>Valor (R$)</label>
+        <input id="adValor" type="number" placeholder="50.00" min="0.01" step="0.01">
+      </div>
+      <button class="admin-btn" id="adBtn" onclick="adminPix()">Registrar Pix</button>
+      <div class="admin-feedback" id="adFeedback"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>📦 Registrar reserva</h2>
+      <div class="admin-field">
+        <label>Nome</label>
+        <input id="adResNome" type="text" placeholder="João Santos" maxlength="60">
+      </div>
+      <div class="admin-field">
+        <label>Item</label>
+        <select id="adResItem" style="padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:15px;width:100%;">
+          <option value="">Carregando itens…</option>
+        </select>
+      </div>
+      <button class="admin-btn" id="adResBtn" onclick="adminReserva()">Registrar Reserva</button>
+      <div class="admin-feedback" id="adResFeedback"></div>
+    </div>
+
+    <div class="admin-card admin-log">
+      <h3>Últimas doações</h3>
+      <div id="adLog">Carregando…</div>
+    </div>
+  </div>`;
+
+  async function adminInit(){
+    const [{data:iData},{data:dData}] = await Promise.all([
+      sb.from("items").select("id,name,ordem").order("ordem"),
+      sb.from("donations").select("*,items(name)").order("id",{ascending:false}).limit(20)
+    ]);
+    // popula select de itens
+    const sel = document.getElementById("adResItem");
+    sel.innerHTML = iData.map(i=>`<option value="${i.id}">${i.name}</option>`).join("");
+    // log
+    const log = document.getElementById("adLog");
+    if(!dData||!dData.length){log.textContent="Nenhuma doação ainda.";return;}
+    log.innerHTML = dData.map(d=>`<div class="log-item"><span class="log-name">💚 ${d.nome}</span><span class="log-val">R$ ${Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span></div>`).join("");
+  }
+
+  window.adminPix = async function(){
+    const nome = document.getElementById("adNome").value.trim();
+    const valor = parseFloat(document.getElementById("adValor").value);
+    const fb = document.getElementById("adFeedback");
+    const btn = document.getElementById("adBtn");
+    if(!nome||!valor||valor<=0){fb.textContent="Preencha nome e valor.";fb.className="admin-feedback err";return;}
+    btn.disabled=true; fb.textContent="Registrando…"; fb.className="admin-feedback";
+    const {error} = await sb.rpc("add_pix",{amount:valor, nome});
+    if(error){fb.textContent="Erro: "+error.message;fb.className="admin-feedback err";}
+    else{fb.textContent="✓ Pix registrado!";fb.className="admin-feedback ok";document.getElementById("adNome").value="";document.getElementById("adValor").value="";}
+    btn.disabled=false;
+    adminInit();
+  };
+
+  window.adminReserva = async function(){
+    const nome = document.getElementById("adResNome").value.trim();
+    const item_id = document.getElementById("adResItem").value;
+    const fb = document.getElementById("adResFeedback");
+    const btn = document.getElementById("adResBtn");
+    if(!nome||!item_id){fb.textContent="Preencha nome e item.";fb.className="admin-feedback err";return;}
+    btn.disabled=true; fb.textContent="Registrando…"; fb.className="admin-feedback";
+    const {error} = await sb.from("reservations").insert({item_id, nome});
+    if(error){fb.textContent="Erro: "+error.message;fb.className="admin-feedback err";}
+    else{fb.textContent="✓ Reserva registrada!";fb.className="admin-feedback ok";document.getElementById("adResNome").value="";}
+    btn.disabled=false;
+  };
+
+  adminInit();
+}
+
+const ICONS={colchao:"🛏️",cama:"🛌",geladeira:"🧊",fogao:"🍳",panelas:"🍳",pratos:"🍽️",talheres:"🍴",copos:"🥤",tigelas:"🥣",frigideira:"🍳",utensilios:"🥄",tabua:"🔪",potes:"🥡",jogoscama:"🛏️",travesseiros:"💤",cobertor:"🛌",toalhas:"🚿",kitbanheiro:"🚽",vassoura:"🧹",moprodo:"🧼",panos:"🧽",limpeza:"🧴",lixeiras:"🗑️",baldes:"🪣",armariocozinha:"🗄️",armariomultiuso:"🗄️",cabideira:"👚",caixas:"📦",cabides:"👚",sofa:"🛋️",rack:"📺",espelho:"🪞",organizadores:"📦",microondas:"📡",liquidificador:"🫙",escorredor_louca:"🍽️",assadeiras:"🥘",espremedor:"🍋",garrafa_termica:"☕",porta_sabonete:"🧴",cesto_roupa:"🧺",lampadas:"💡",lixeira_cozinha:"🗑️",lixeira_banheiro:"🗑️",pano_prato:"🧻",potes_hermeticos:"🥡",mesa_cadeiras:"🪑",tabua_cozinha:"🔪",organizador_pia:"🧹"};
+const BRL=n=>"R$ "+Math.round(n).toLocaleString("pt-BR");
+
+let items=[], donations=[], reservations=[], pendingReserveId=null;
+
+function copyPix(){
+  navigator.clipboard.writeText("ovnicardoso@gmail.com").then(()=>{
+    const m=document.getElementById("copiedMsg");
+    m.style.opacity="1";setTimeout(()=>m.style.opacity="0",2000);
+  });
+}
+
+function openModal(id,name){
+  pendingReserveId=id;
+  document.getElementById("modalItemName").textContent="Você está reservando: "+name;
+  document.getElementById("modalName").value="";
+  document.getElementById("overlay").classList.add("open");
+  setTimeout(()=>document.getElementById("modalName").focus(),100);
+}
+function closeModal(){ document.getElementById("overlay").classList.remove("open"); pendingReserveId=null; }
+async function confirmReserve(){
+  const nome=document.getElementById("modalName").value.trim();
+  if(!nome) return document.getElementById("modalName").focus();
+  closeModal();
+  await sb.from("reservations").insert({item_id:pendingReserveId||pendingReserveId, nome});
+  // recarrega reservations
+  const {data}=await sb.from("reservations").select("*");
+  if(data) reservations=data;
+  render();
+}
+// fix: pendingReserveId antes de fechar
+const _confirmReserve=confirmReserve;
+window.confirmReserve=async function(){
+  const nome=document.getElementById("modalName").value.trim();
+  if(!nome) return document.getElementById("modalName").focus();
+  const id=pendingReserveId;
+  closeModal();
+  await sb.from("reservations").insert({item_id:id, nome});
+  const {data}=await sb.from("reservations").select("*");
+  if(data) reservations=data;
+  render();
+};
+
+function getHelpers(itemId){
+  const res=reservations.filter(r=>r.item_id===itemId);
+  const don=donations.filter(d=>d.item_id===itemId);
+  return {res,don};
+}
+
+function helpersHTML(itemId){
+  const {res,don}=getHelpers(itemId);
+  if(!res.length && !don.length) return "";
+  const lines=[
+    ...don.map(d=>`<div class="helper-item donation">💚 ${d.nome}<br><span style="font-size:10px">${BRL(d.valor)}</span></div>`),
+    ...res.map(r=>`<div class="helper-item reservation">📦 ${r.nome}<br><span style="font-size:10px">vai dar</span></div>`)
+  ];
+  return `<div class="helpers">${lines.join("")}</div>`;
+}
+
+function isReserved(itemId){ return reservations.some(r=>r.item_id===itemId); }
+
+function render(){
+  if(EDIT) document.getElementById("editBanner").innerHTML='<div class="edit-banner">✏️ Modo edição</div>';
+  const hero=document.getElementById("hero");
+  const list=document.getElementById("list");
+  const pending=items.filter(i=>i.arrecadado<i.meta).sort((a,b)=>a.ordem-b.ordem);
+  const current=pending[0];
+
+  const editFields=(i)=>!EDIT?"":` <div class="editrow">
+    <input type="number" data-f="arrecadado" data-id="${i.id}" value="${i.arrecadado}" placeholder="Arrecadado">
+    <input type="number" data-f="meta" data-id="${i.id}" value="${i.meta}" placeholder="Meta">
+    <button class="givebtn small" data-save="${i.id}">Salvar</button></div>`;
+
+  if(!current){
+    hero.innerHTML='<div class="done-msg">🎉 Tudo quitado! Muito obrigado, pessoal!</div>';
+  } else {
+    const pct=Math.min(100,Math.round(100*current.arrecadado/current.meta));
+    const reserved=isReserved(current.id);
+    hero.innerHTML=`
+      <div class="icon">${ICONS[current.id]||"🎁"}</div>
+      <div class="name">${current.name}</div>
+      <div class="bar-outer"><div class="bar-inner" style="width:${pct}%"></div><div class="bar-label">${pct}%</div></div>
+      <div class="values">${BRL(current.arrecadado)} de ${BRL(current.meta)}</div>
+      <div class="missing">Faltam ${BRL(current.meta-current.arrecadado)}</div>
+      ${helpersHTML(current.id)}
+      <button class="givebtn" data-give="${current.id}" data-name="${current.name}" ${reserved?"disabled":""}>
+        ${reserved?"✅ Reservado":"🎁 Eu dou esse!"}
+      </button>
+      ${editFields(current)}`;
+  }
+
+  list.innerHTML=pending.slice(current?1:0).map(i=>{
+    const pct=Math.min(100,Math.round(100*i.arrecadado/i.meta));
+    const reserved=isReserved(i.id);
+    return `<div class="row${reserved?" reserved":""}">
+      ${reserved?'<div class="badge-reserved">RESERVADO</div>':""}
+      <div class="ic">${ICONS[i.id]||"🎁"}</div>
+      <div class="info">
+        <div class="rname">${i.name}</div>
+        <div class="rbar"><div class="rbar-in" style="width:${pct}%"></div></div>
+        <div class="rval">${BRL(i.arrecadado)} de ${BRL(i.meta)}</div>
+        ${editFields(i)}
+      </div>
+      ${helpersHTML(i.id)}
+      <div class="row-btn">
+        <button class="givebtn small" data-give="${i.id}" data-name="${i.name}" ${reserved?"disabled":""}>
+          ${reserved?"✅":"🎁"}
+        </button>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll("[data-give]").forEach(btn=>{
+    if(!btn.disabled) btn.onclick=()=>openModal(btn.getAttribute("data-give"),btn.getAttribute("data-name"));
+  });
+  document.querySelectorAll("[data-save]").forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.getAttribute("data-save");
+      const row=btn.closest(".editrow");
+      const meta=parseFloat(row.querySelector('[data-f="meta"]').value);
+      const arrecadado=parseFloat(row.querySelector('[data-f="arrecadado"]').value);
+      sb.from("items").update({meta,arrecadado}).eq("id",id);
+    };
+  });
+}
+
+async function init(){
+  const [{data:iData,error:iErr},{data:dData},{data:rData}]=await Promise.all([
+    sb.from("items").select("*"),
+    sb.from("donations").select("*"),
+    sb.from("reservations").select("*")
+  ]);
+  if(iErr||!iData){
+    document.getElementById("hero").innerHTML='<div style="color:var(--muted);padding:40px 0">Não consegui conectar ao banco.</div>';
+    return;
+  }
+  items=iData; donations=dData||[]; reservations=rData||[];
+  render();
+
+  // realtime
+  sb.channel("all-changes")
+    .on("postgres_changes",{event:"*",schema:"public",table:"items"},p=>{
+      const idx=items.findIndex(i=>i.id===(p.new?.id||p.old?.id));
+      if(p.eventType==="DELETE"){if(idx>-1)items.splice(idx,1);}
+      else if(idx>-1){items[idx]=p.new;}else{items.push(p.new);}
+      render();
+    })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"donations"},p=>{
+      donations.push(p.new); render();
+    })
+    .on("postgres_changes",{event:"INSERT",schema:"public",table:"reservations"},p=>{
+      reservations.push(p.new); render();
+    })
+    .subscribe();
+}
+if(!ADMIN) init();
+</script>
+</body>
+</html>
