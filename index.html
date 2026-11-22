@@ -398,16 +398,25 @@ function renderDonorsList(){
     else grupos.set(key,{type:"donation",nome:d.nome,valor:Number(d.valor||0),ord:new Date(d.created_at||0).getTime()});
   });
 
-  // tamanho do nome proporcional ao valor da doação em relação às outras
-  const MIN_PX=11, MAX_PX=30;
-  const maior=Math.max(1,...[...grupos.values()].map(g=>g.valor));
-  // linear: a maior doação usa MAX_PX e as outras ficam na mesma proporção (com piso MIN_PX pra continuar legível)
-  const fontPx=(v)=>Math.round(Math.max(MIN_PX,MAX_PX*(v/maior))*10)/10;
+  // doadores do que mais doou pro que menos doou (empate: o mais recente primeiro)
+  const doadores=[...grupos.values()].sort((x,y)=>(y.valor-x.valor)||(y.ord-x.ord));
 
-  const entries=[
-    ...[...grupos.values()].map(g=>({...g,item:"",px:fontPx(g.valor)})),
-    ...reservations.map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),px:13,ord:new Date(r.created_at||0).getTime()}))
-  ].sort((a,b)=>(b.ord||0)-(a.ord||0));
+  // tamanho do nome por COLOCAÇÃO (1º maior, depois vai diminuindo), não pelo valor.
+  // empate de valor = mesma colocação = mesmo tamanho
+  const TIERS=[30,24,20,17,15];   // 1º, 2º, 3º, 4º, 5º
+  const BASE_PX=13;               // 6º em diante
+  let rank=0, prev=null;
+  doadores.forEach((g,idx)=>{
+    if(g.valor!==prev){ rank=idx; prev=g.valor; }
+    g.px=TIERS[rank]!==undefined?TIERS[rank]:BASE_PX;
+  });
+
+  // reservas ficam depois dos doadores, mais recentes primeiro
+  const reservas=reservations
+    .map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),px:BASE_PX,ord:new Date(r.created_at||0).getTime()}))
+    .sort((x,y)=>y.ord-x.ord);
+
+  const entries=[...doadores.map(g=>({...g,item:""})),...reservas];
 
   if(!entries.length){
     el.innerHTML='<div class="donors-empty">Ninguém ajudou ainda — seja o primeiro! 🎁</div>';
