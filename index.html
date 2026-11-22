@@ -75,7 +75,7 @@
   .donor-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
   .donor-row:last-child{border-bottom:none;}
   .donor-row .dname{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .donor-row.donation .dname{color:var(--accent);}
+  .donor-row.donation .dname{color:var(--accent);white-space:normal;overflow-wrap:anywhere;line-height:1.15;}
   .donor-row.reservation .dname{color:var(--reserved);}
   .donor-row .ditem{color:var(--muted);font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .donor-row .dtag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-left:6px;}
@@ -384,18 +384,24 @@ function renderDonorsList(){
   if(!el) return;
   const itemName=(id)=>{ const it=items.find(i=>i.id===id); return it?it.name:""; };
 
-  // um Pix que foi dividido entre vários itens gera várias linhas com o mesmo
-  // nome e o mesmo created_at — aparece uma vez só na lista
+  // um Pix dividido entre vários itens gera várias linhas com o mesmo nome e o mesmo
+  // created_at: vira uma entrada só, com o valor somado
   const grupos=new Map();
   donations.forEach(d=>{
     const key=d.created_at?(d.nome+"|"+d.created_at):("id|"+d.id);
     const g=grupos.get(key);
-    if(!g) grupos.set(key,{type:"donation",nome:d.nome,item:"",ord:new Date(d.created_at||0).getTime()});
+    if(g) g.valor+=Number(d.valor||0);
+    else grupos.set(key,{type:"donation",nome:d.nome,valor:Number(d.valor||0),ord:new Date(d.created_at||0).getTime()});
   });
 
+  // tamanho do nome proporcional ao valor da doação em relação às outras
+  const MIN_PX=12, MAX_PX=26;
+  const maior=Math.max(1,...[...grupos.values()].map(g=>g.valor));
+  const fontPx=(v)=>Math.round((MIN_PX+(MAX_PX-MIN_PX)*Math.sqrt(v/maior))*10)/10;
+
   const entries=[
-    ...grupos.values(),
-    ...reservations.map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),ord:new Date(r.created_at||0).getTime()}))
+    ...[...grupos.values()].map(g=>({...g,item:"",px:fontPx(g.valor)})),
+    ...reservations.map(r=>({type:"reservation",nome:r.nome,item:itemName(r.item_id),px:13,ord:new Date(r.created_at||0).getTime()}))
   ].sort((a,b)=>(b.ord||0)-(a.ord||0));
 
   if(!entries.length){
@@ -404,7 +410,7 @@ function renderDonorsList(){
   }
   el.innerHTML=entries.map(e=>`
     <div class="donor-row ${e.type}">
-      <span class="dname">${e.type==="donation"?"💚":"📦"} ${e.nome}</span>
+      <span class="dname" style="font-size:${e.px}px">${e.type==="donation"?"💚":"📦"} ${e.nome}</span>
       ${e.type==="reservation"?`<span class="ditem">${e.item} <span class="dtag">vai dar</span></span>`:""}
     </div>`).join("");
 }
